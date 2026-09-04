@@ -128,7 +128,7 @@ dependencies:
 	assert.Greater(t, pe.Column, 0, "expected a column anchored on the pin key")
 }
 
-func TestParse_MissingRequiredHostnameRejected(t *testing.T) {
+func TestParse_OmittedHostnameAccepted(t *testing.T) {
 	yaml := `version: v0.0.3
 dependencies:
   actions/checkout@v4:
@@ -137,14 +137,9 @@ dependencies:
     owner_id: 1
     repo_id: 2
 `
-	_, err := Parse([]byte(yaml))
-	require.Error(t, err)
-
-	var pe *ParseError
-	require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
-	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
-	assert.Contains(t, pe.Msg, "actions/checkout@v4")
-	assert.Equal(t, 3, pe.Line)
+	f, err := Parse([]byte(yaml))
+	require.NoError(t, err)
+	assert.Empty(t, f.Dependencies["actions/checkout@v4"].Hostname)
 }
 
 func TestParse_EmptyHostnameRejected(t *testing.T) {
@@ -331,13 +326,14 @@ func TestParse_ScopedValidation_CorruptPathOnly_Errors(t *testing.T) {
 	assert.Contains(t, pe.Msg, corruptPin)
 }
 
-func TestParse_ScopedValidation_CanonicalPinStillRequiresHostname(t *testing.T) {
+func TestParse_ScopedValidation_CanonicalPinStillValidatesHostname(t *testing.T) {
 	data := `version: v0.0.3
 workflows:
   .github/workflows/a.yml:
     - Actions/Checkout@v4
 dependencies:
   actions/checkout@v4:
+    hostname: null
     ref: v4
     commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
     owner_id: 1
@@ -348,7 +344,7 @@ dependencies:
 
 	var pe *ParseError
 	require.True(t, errors.As(err, &pe))
-	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
+	assert.Contains(t, pe.Msg, `action field "hostname" must be a string`)
 	assert.Contains(t, pe.Msg, "actions/checkout@v4")
 }
 
@@ -359,7 +355,6 @@ workflows:
     - actions/composite@v1
 dependencies:
   actions/composite@v1:
-    hostname: github.example.test
     ref: v1
     commit: sha1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     owner_id: 1
@@ -367,6 +362,7 @@ dependencies:
     uses:
       - actions/cache@v4
   actions/cache@v4:
+    hostname: null
     ref: v4
     commit: sha1-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
     owner_id: 3
@@ -377,7 +373,7 @@ dependencies:
 
 	var pe *ParseError
 	require.True(t, errors.As(err, &pe))
-	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
+	assert.Contains(t, pe.Msg, `action field "hostname" must be a string`)
 	assert.Contains(t, pe.Msg, "actions/cache@v4")
 }
 

@@ -104,7 +104,6 @@ workflows:
 dependencies:
   # pin key -> resolved action metadata
   actions/checkout@v6.0.2:
-    hostname: github.com
     ref: v6.0.2
     commit: sha1-de0fac2e...
     owner_id: 44036562
@@ -114,6 +113,11 @@ dependencies:
 A pin key is `OWNER/REPO@REF`. The same key appears in both `workflows` (as
 flat transitive lists) and `dependencies` (as deduplicated graph entries with
 `uses:` links to direct dependencies).
+
+The `hostname` field is optional in v0.0.3. Dotcom-only producers may omit it.
+Hostname-aware producers running in Proxima record the canonical hostname for
+every direct and transitive dependency, including `github.com` dependencies in
+mixed graphs. When present, `hostname` must be a non-empty string.
 
 The parser also reads the dotcom-only v0.0.1 and v0.0.2 lockfiles, defaulting
 every dependency's `hostname` to `github.com` in memory. v0.0.1 `tag`/`branch`

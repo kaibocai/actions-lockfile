@@ -216,9 +216,9 @@ func (f File) LookupWorkflow(workflowKey string) ([]string, bool) {
 
 // Action carries the per-action metadata recorded under a pin key.
 //
-// Hostname is the canonical hostname of the GitHub instance that owns the
-// dependency (required). Ref is the git ref the commit was resolved from
-// (required). Commit is the digest in algo-prefixed form (e.g.
+// Hostname is the optional canonical hostname of the GitHub instance that owns
+// the dependency; it is empty when omitted. Ref is the git ref the commit was
+// resolved from (required). Commit is the digest in algo-prefixed form (e.g.
 // "sha1-abc123...", "sha256-def456...") (required). OwnerID and RepoID are the
 // host-specific numeric IDs for the owner and repository, used to detect a
 // repository transfer (the name changes but the ID does not). Uses lists the
@@ -369,9 +369,9 @@ var allowedActionKeys = map[string]struct{}{
 
 // requiredActionKeys lists the keys every v0.0.3 dependency's Action mapping
 // must carry, in report order.
-var requiredActionKeys = []string{"hostname", "ref", "commit", "owner_id", "repo_id"}
+var requiredActionKeys = []string{"ref", "commit", "owner_id", "repo_id"}
 
-// nonEmptyStringKeys lists action fields that must be non-empty strings.
+// nonEmptyStringKeys lists action fields that must be non-empty when present.
 var nonEmptyStringKeys = map[string]struct{}{
 	"hostname": {},
 	"ref":      {},
@@ -384,10 +384,10 @@ var positiveIntKeys = map[string]struct{}{
 	"repo_id":  {},
 }
 
-// rejectZeroValues checks that required action fields carry meaningful values:
-// commit must be a valid algo-hex digest, ID fields must be positive, and
-// nonEmptyStringKeys must not be blank. A present-but-zero value would silently
-// disable the security check it enforces.
+// rejectZeroValues checks that action fields carry meaningful values when
+// present: commit must be a valid algo-hex digest, ID fields must be positive,
+// and nonEmptyStringKeys must not be blank. A present-but-zero value would
+// silently disable the security check it enforces.
 func rejectZeroValues(action *yaml.Node, dep string) *ParseError {
 	for j := 0; j+1 < len(action.Content); j += 2 {
 		key := action.Content[j]

@@ -35,10 +35,10 @@
       "description": "Resolved metadata for a single pinned action.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["hostname", "ref", "commit", "owner_id", "repo_id"],
+      "required": ["ref", "commit", "owner_id", "repo_id"],
       "properties": {
         "hostname": {
-          "description": "The canonical hostname of the GitHub instance that owns and resolves this dependency (for example, github.com). Producers record the exact canonical hostname; consumers use it to select the matching resolver.",
+          "description": "The optional canonical hostname of the GitHub instance that owns and resolves this dependency (for example, github.com). Hostname-aware producers record the exact canonical hostname for every dependency; when present, consumers use it to select the matching resolver.",
           "type": "string",
           "minLength": 1
         },
