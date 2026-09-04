@@ -459,26 +459,22 @@ func validateKnownFieldsVersioned(f *File, paths []string, version string) *Pars
 		return nil
 	}
 
-	var inScope map[string]struct{}
-	if len(paths) > 0 {
-		inScope = make(map[string]struct{})
-		for _, p := range paths {
-			for _, pin := range f.Workflows[p] {
-				inScope[canonicalPinForVersion(pin, version)] = struct{}{}
-			}
-		}
-	}
+	inScope := scopedDependencyPins(f, paths, version)
 
 	for i := 0; i+1 < len(deps.Content); i += 2 {
 		pinKey := deps.Content[i]
 		action := deps.Content[i+1]
-		if action.Kind != yaml.MappingNode {
-			continue
-		}
 
 		if inScope != nil {
 			if _, ok := inScope[canonicalPinForVersion(pinKey.Value, version)]; !ok {
 				continue
+			}
+		}
+		if action.Kind != yaml.MappingNode {
+			return &ParseError{
+				Line:   action.Line,
+				Column: action.Column,
+				Msg:    fmt.Sprintf("action metadata for dependency %q must be a mapping", pinKey.Value),
 			}
 		}
 
@@ -517,6 +513,42 @@ func validateKnownFieldsVersioned(f *File, paths []string, version string) *Pars
 		}
 	}
 	return nil
+}
+
+func scopedDependencyPins(f *File, paths []string, version string) map[string]struct{} {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	actionsByPin := make(map[string][]Action, len(f.Dependencies))
+	for key, action := range f.Dependencies {
+		pin := canonicalPinForVersion(key, version)
+		actionsByPin[pin] = append(actionsByPin[pin], action)
+	}
+
+	inScope := make(map[string]struct{})
+	var pending []string
+	for _, path := range paths {
+		for _, pin := range f.Workflows[path] {
+			pending = append(pending, canonicalPinForVersion(pin, version))
+		}
+	}
+
+	for len(pending) > 0 {
+		pin := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		if _, seen := inScope[pin]; seen {
+			continue
+		}
+		inScope[pin] = struct{}{}
+		for _, action := range actionsByPin[pin] {
+			for _, used := range action.Uses {
+				pending = append(pending, canonicalPinForVersion(used, version))
+			}
+		}
+	}
+
+	return inScope
 }
 
 func canonicalPinForVersion(value, version string) string {

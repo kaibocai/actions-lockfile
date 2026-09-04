@@ -393,6 +393,14 @@ func rejectZeroValues(action *yaml.Node, dep string) *ParseError {
 		key := action.Content[j]
 		val := action.Content[j+1]
 
+		if key.Value == "hostname" && (val.Kind != yaml.ScalarNode || val.Tag != "!!str") {
+			return &ParseError{
+				Line:   val.Line,
+				Column: val.Column,
+				Msg:    fmt.Sprintf("action field %q must be a string for dependency %q", key.Value, dep),
+			}
+		}
+
 		if _, ok := nonEmptyStringKeys[key.Value]; ok {
 			if val.Value == "" {
 				return &ParseError{

@@ -166,6 +166,25 @@ dependencies:
 	assert.Contains(t, pe.Msg, "must not be empty")
 }
 
+func TestParse_NullHostnameRejected(t *testing.T) {
+	yaml := `version: v0.0.3
+dependencies:
+  actions/checkout@v4:
+    hostname: null
+    ref: v4
+    commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
+    owner_id: 1
+    repo_id: 2
+`
+	_, err := Parse([]byte(yaml))
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
+	assert.Contains(t, pe.Msg, `"hostname"`)
+	assert.Contains(t, pe.Msg, "must be a string")
+}
+
 func TestParse_EmptyCommitRejected(t *testing.T) {
 	yaml := `version: v0.0.2
 dependencies:
@@ -331,6 +350,51 @@ dependencies:
 	require.True(t, errors.As(err, &pe))
 	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
 	assert.Contains(t, pe.Msg, "actions/checkout@v4")
+}
+
+func TestParse_ScopedValidation_ValidatesTransitiveUses(t *testing.T) {
+	data := `version: v0.0.3
+workflows:
+  .github/workflows/a.yml:
+    - actions/composite@v1
+dependencies:
+  actions/composite@v1:
+    hostname: github.example.test
+    ref: v1
+    commit: sha1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    owner_id: 1
+    repo_id: 2
+    uses:
+      - actions/cache@v4
+  actions/cache@v4:
+    ref: v4
+    commit: sha1-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    owner_id: 3
+    repo_id: 4
+`
+	_, err := Parse([]byte(data), ".github/workflows/a.yml")
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe))
+	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
+	assert.Contains(t, pe.Msg, "actions/cache@v4")
+}
+
+func TestParse_ScopedValidation_NullDependencyRejected(t *testing.T) {
+	data := `version: v0.0.3
+workflows:
+  .github/workflows/a.yml:
+    - actions/checkout@v4
+dependencies:
+  actions/checkout@v4: null
+`
+	_, err := Parse([]byte(data), ".github/workflows/a.yml")
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe))
+	assert.Contains(t, pe.Msg, `action metadata for dependency "actions/checkout@v4" must be a mapping`)
 }
 
 func TestParse_ScopedValidation_AbsentPath_FailOpen(t *testing.T) {
