@@ -17,6 +17,7 @@ func TestSchema_EmbeddedMatchesRootInvariant(t *testing.T) {
 	}{
 		{"v0.0.1", "../../../schema/lockfile-v0.0.1.json"},
 		{"v0.0.2", "../../../schema/lockfile-v0.0.2.json"},
+		{"v0.0.3", "../../../schema/lockfile-v0.0.3.json"},
 	} {
 		t.Run(ver.version, func(t *testing.T) {
 			rootSchema, err := os.ReadFile(ver.file)
@@ -127,6 +128,44 @@ dependencies:
 	assert.Greater(t, pe.Column, 0, "expected a column anchored on the pin key")
 }
 
+func TestParse_MissingRequiredHostnameRejected(t *testing.T) {
+	yaml := `version: v0.0.3
+dependencies:
+  actions/checkout@v4:
+    ref: v4
+    commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
+    owner_id: 1
+    repo_id: 2
+`
+	_, err := Parse([]byte(yaml))
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
+	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
+	assert.Contains(t, pe.Msg, "actions/checkout@v4")
+	assert.Equal(t, 3, pe.Line)
+}
+
+func TestParse_EmptyHostnameRejected(t *testing.T) {
+	yaml := `version: v0.0.3
+dependencies:
+  actions/checkout@v4:
+    hostname: ""
+    ref: v4
+    commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
+    owner_id: 1
+    repo_id: 2
+`
+	_, err := Parse([]byte(yaml))
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
+	assert.Contains(t, pe.Msg, `"hostname"`)
+	assert.Contains(t, pe.Msg, "must not be empty")
+}
+
 func TestParse_EmptyCommitRejected(t *testing.T) {
 	yaml := `version: v0.0.2
 dependencies:
@@ -200,12 +239,13 @@ dependencies:
 }
 
 func TestParse_KnownFieldsAccepted(t *testing.T) {
-	yaml := `version: v0.0.2
+	yaml := `version: v0.0.3
 workflows:
   .github/workflows/ci.yml:
     - actions/checkout@v4
 dependencies:
   actions/checkout@v4:
+    hostname: github.example.test
     ref: v4
     commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
     owner_id: 1
@@ -217,6 +257,7 @@ dependencies:
 	require.NoError(t, err)
 	assert.Len(t, f.Dependencies, 1)
 	assert.Contains(t, f.Workflows, ".github/workflows/ci.yml")
+	assert.Equal(t, "github.example.test", f.Dependencies["actions/checkout@v4"].Hostname)
 }
 
 // corruptLockfile is a shared fixture for scoped-validation tests: goodPin is

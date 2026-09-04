@@ -69,7 +69,7 @@ func newYAMLParseError(err error) *ParseError {
 }
 
 // Version is the latest lockfile schema version this binary writes.
-const Version = "v0.0.2"
+const Version = "v0.0.3"
 
 // Path is the canonical repo-relative location of the dependency lockfile.
 const Path = ".github/workflows/actions.lock"
@@ -80,12 +80,13 @@ const CLIName = "gh actions-lock"
 // File is the parsed lockfile shape.
 //
 //	# .github/workflows/actions.lock
-//	version: v0.0.1
+//	version: v0.0.3
 //	workflows:
 //	  .github/workflows/deploy.yml:
 //	    - actions/checkout@v6
 //	dependencies:
 //	  actions/checkout@v4.3.1:
+//	    hostname: github.com
 //	    ref: v4.3.1
 //	    commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
 //	    owner_id: 44036562
@@ -215,19 +216,21 @@ func (f File) LookupWorkflow(workflowKey string) ([]string, bool) {
 
 // Action carries the per-action metadata recorded under a pin key.
 //
-// Ref is the git ref the commit was resolved from (required). Commit is the
-// digest in algo-prefixed form (e.g. "sha1-abc123...", "sha256-def456..."),
-// matching the digest in the pin key (required). OwnerID and RepoID are the
-// GitHub numeric IDs for the owner and repository, used to detect a repository
-// transfer (the name changes but the ID does not). Uses lists the action's
-// direct nested dependencies as canonical pin keys — empty for leaf actions,
-// populated for composite actions.
+// Hostname is the canonical hostname of the GitHub instance that owns the
+// dependency (required). Ref is the git ref the commit was resolved from
+// (required). Commit is the digest in algo-prefixed form (e.g.
+// "sha1-abc123...", "sha256-def456...") (required). OwnerID and RepoID are the
+// host-specific numeric IDs for the owner and repository, used to detect a
+// repository transfer (the name changes but the ID does not). Uses lists the
+// action's direct nested dependencies as canonical pin keys — empty for leaf
+// actions, populated for composite actions.
 type Action struct {
-	Ref     string   `yaml:"ref,omitempty"`
-	Commit  string   `yaml:"commit,omitempty"`
-	OwnerID int64    `yaml:"owner_id"`
-	RepoID  int64    `yaml:"repo_id"`
-	Uses    []string `yaml:"uses,omitempty"`
+	Hostname string   `yaml:"hostname,omitempty"`
+	Ref      string   `yaml:"ref,omitempty"`
+	Commit   string   `yaml:"commit,omitempty"`
+	OwnerID  int64    `yaml:"owner_id"`
+	RepoID   int64    `yaml:"repo_id"`
+	Uses     []string `yaml:"uses,omitempty"`
 }
 
 // MaxParseSize is the maximum number of bytes Parse accepts. Larger inputs are
@@ -353,9 +356,10 @@ var allowedFileKeys = map[string]struct{}{
 	"dependencies": {},
 }
 
-// allowedActionKeys is the set of permitted keys within a v0.0.2 dependency's
+// allowedActionKeys is the set of permitted keys within a v0.0.3 dependency's
 // Action mapping.
 var allowedActionKeys = map[string]struct{}{
+	"hostname": {},
 	"ref":      {},
 	"commit":   {},
 	"owner_id": {},
@@ -363,14 +367,15 @@ var allowedActionKeys = map[string]struct{}{
 	"uses":     {},
 }
 
-// requiredActionKeys lists the keys every v0.0.2 dependency's Action mapping
+// requiredActionKeys lists the keys every v0.0.3 dependency's Action mapping
 // must carry, in report order.
-var requiredActionKeys = []string{"ref", "commit", "owner_id", "repo_id"}
+var requiredActionKeys = []string{"hostname", "ref", "commit", "owner_id", "repo_id"}
 
 // nonEmptyStringKeys lists action fields that must be non-empty strings.
 var nonEmptyStringKeys = map[string]struct{}{
-	"ref":    {},
-	"commit": {},
+	"hostname": {},
+	"ref":      {},
+	"commit":   {},
 }
 
 // positiveIntKeys lists action fields that must be positive integers (> 0).
@@ -522,7 +527,7 @@ func canonicalizeActions(f *File) (string, error) {
 }
 
 func equalAction(a, b Action) bool {
-	if a.Ref != b.Ref || a.Commit != b.Commit ||
+	if a.Hostname != b.Hostname || a.Ref != b.Ref || a.Commit != b.Commit ||
 		a.OwnerID != b.OwnerID || a.RepoID != b.RepoID {
 		return false
 	}
