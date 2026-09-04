@@ -464,7 +464,7 @@ func validateKnownFieldsVersioned(f *File, paths []string, version string) *Pars
 		inScope = make(map[string]struct{})
 		for _, p := range paths {
 			for _, pin := range f.Workflows[p] {
-				inScope[pin] = struct{}{}
+				inScope[canonicalPinForVersion(pin, version)] = struct{}{}
 			}
 		}
 	}
@@ -477,7 +477,7 @@ func validateKnownFieldsVersioned(f *File, paths []string, version string) *Pars
 		}
 
 		if inScope != nil {
-			if _, ok := inScope[pinKey.Value]; !ok {
+			if _, ok := inScope[canonicalPinForVersion(pinKey.Value, version)]; !ok {
 				continue
 			}
 		}
@@ -517,6 +517,19 @@ func validateKnownFieldsVersioned(f *File, paths []string, version string) *Pars
 		}
 	}
 	return nil
+}
+
+func canonicalPinForVersion(value, version string) string {
+	if version == "v0.0.1" {
+		if pin, ok := parsePinV001(value); ok {
+			return pin.String()
+		}
+		return value
+	}
+	if pin, ok := ParsePin(value); ok {
+		return pin.String()
+	}
+	return value
 }
 
 // rejectDuplicateDependencyKeys walks the top-level `dependencies` mapping and

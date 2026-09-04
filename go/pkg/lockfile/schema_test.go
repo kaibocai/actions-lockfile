@@ -312,6 +312,27 @@ func TestParse_ScopedValidation_CorruptPathOnly_Errors(t *testing.T) {
 	assert.Contains(t, pe.Msg, corruptPin)
 }
 
+func TestParse_ScopedValidation_CanonicalPinStillRequiresHostname(t *testing.T) {
+	data := `version: v0.0.3
+workflows:
+  .github/workflows/a.yml:
+    - Actions/Checkout@v4
+dependencies:
+  actions/checkout@v4:
+    ref: v4
+    commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
+    owner_id: 1
+    repo_id: 2
+`
+	_, err := Parse([]byte(data), ".github/workflows/a.yml")
+	require.Error(t, err)
+
+	var pe *ParseError
+	require.True(t, errors.As(err, &pe))
+	assert.Contains(t, pe.Msg, `missing required action field "hostname"`)
+	assert.Contains(t, pe.Msg, "actions/checkout@v4")
+}
+
 func TestParse_ScopedValidation_AbsentPath_FailOpen(t *testing.T) {
 	f, err := Parse([]byte(corruptLockfile), ".github/workflows/c.yml")
 	require.NoError(t, err)
