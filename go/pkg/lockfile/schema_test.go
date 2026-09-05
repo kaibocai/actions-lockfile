@@ -3,6 +3,7 @@ package lockfile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -72,6 +73,13 @@ func TestSchema_EmbeddedMatchesEnforcement(t *testing.T) {
 
 	assert.ElementsMatch(t, doc.Defs.Action.Required, requiredActionKeys,
 		"schema action.required must match the keys enforcement requires")
+
+	var hostnameSchema struct {
+		Pattern string `json:"pattern"`
+	}
+	require.NoError(t, json.Unmarshal(doc.Defs.Action.Properties["hostname"], &hostnameSchema))
+	assert.Equal(t, canonicalHostnamePattern, hostnameSchema.Pattern,
+		"schema hostname pattern must match parser enforcement")
 }
 
 func TestParse_UnknownTopLevelFieldRejected(t *testing.T) {
@@ -142,17 +150,20 @@ dependencies:
 	assert.Empty(t, f.Dependencies["actions/checkout@v4"].Hostname)
 }
 
-func TestParse_EmptyHostnameRejected(t *testing.T) {
-	yaml := `version: v0.0.3
+func v003WithHostname(hostname string) []byte {
+	return []byte(fmt.Sprintf(`version: v0.0.3
 dependencies:
   actions/checkout@v4:
-    hostname: ""
+    hostname: %q
     ref: v4
     commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
     owner_id: 1
     repo_id: 2
-`
-	_, err := Parse([]byte(yaml))
+`, hostname))
+}
+
+func TestParse_EmptyHostnameRejected(t *testing.T) {
+	_, err := Parse(v003WithHostname(""))
 	require.Error(t, err)
 
 	var pe *ParseError
@@ -178,6 +189,43 @@ dependencies:
 	require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
 	assert.Contains(t, pe.Msg, `"hostname"`)
 	assert.Contains(t, pe.Msg, "must be a string")
+}
+
+func TestParse_CanonicalHostnamesAccepted(t *testing.T) {
+	for _, hostname := range []string{"github.com", "octocorp.ghe.com", "octo-corp1.ghe.com"} {
+		t.Run(hostname, func(t *testing.T) {
+			f, err := Parse(v003WithHostname(hostname))
+			require.NoError(t, err)
+			assert.Equal(t, hostname, f.Dependencies["actions/checkout@v4"].Hostname)
+		})
+	}
+}
+
+func TestParse_NonCanonicalHostnameRejected(t *testing.T) {
+	for _, hostname := range []string{
+		"example.com",
+		"GITHUB.COM",
+		"https://github.com",
+		"github.com:443",
+		"github.com/path",
+		"github.com?tenant=octocorp",
+		"github.com#fragment",
+		" github.com",
+		"github.com ",
+		"api.octocorp.ghe.com",
+		"-octocorp.ghe.com",
+		"octocorp-.ghe.com",
+	} {
+		t.Run(hostname, func(t *testing.T) {
+			_, err := Parse(v003WithHostname(hostname))
+			require.Error(t, err)
+
+			var pe *ParseError
+			require.True(t, errors.As(err, &pe), "expected a *ParseError, got %T", err)
+			assert.Contains(t, pe.Msg, `"hostname"`)
+			assert.Contains(t, pe.Msg, "canonical GHE tenant hostname")
+		})
+	}
 }
 
 func TestParse_EmptyCommitRejected(t *testing.T) {
@@ -259,7 +307,7 @@ workflows:
     - actions/checkout@v4
 dependencies:
   actions/checkout@v4:
-    hostname: github.example.test
+    hostname: octocorp.ghe.com
     ref: v4
     commit: sha1-34e114876b0b11c390a56381ad16ebd13914f8d5
     owner_id: 1
@@ -271,7 +319,7 @@ dependencies:
 	require.NoError(t, err)
 	assert.Len(t, f.Dependencies, 1)
 	assert.Contains(t, f.Workflows, ".github/workflows/ci.yml")
-	assert.Equal(t, "github.example.test", f.Dependencies["actions/checkout@v4"].Hostname)
+	assert.Equal(t, "octocorp.ghe.com", f.Dependencies["actions/checkout@v4"].Hostname)
 }
 
 // corruptLockfile is a shared fixture for scoped-validation tests: goodPin is

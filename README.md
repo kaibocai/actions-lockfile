@@ -117,7 +117,8 @@ flat transitive lists) and `dependencies` (as deduplicated graph entries with
 The `hostname` field is optional in v0.0.3. Dotcom-only producers may omit it.
 Hostname-aware producers running in Proxima record the canonical hostname for
 every direct and transitive dependency, including `github.com` dependencies in
-mixed graphs. When present, `hostname` must be a non-empty string.
+mixed graphs. When present, `hostname` must be the bare lowercase `github.com`
+hostname or a lowercase GHE tenant hostname such as `octocorp.ghe.com`.
 
 The parser also reads the dotcom-only v0.0.1 and v0.0.2 lockfiles, defaulting
 every dependency's `hostname` to `github.com` in memory. v0.0.1 `tag`/`branch`

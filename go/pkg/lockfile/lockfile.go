@@ -216,8 +216,9 @@ func (f File) LookupWorkflow(workflowKey string) ([]string, bool) {
 
 // Action carries the per-action metadata recorded under a pin key.
 //
-// Hostname is the optional canonical hostname of the GitHub instance that owns
-// the dependency; it is empty when omitted. Ref is the git ref the commit was
+// Hostname is the optional bare canonical hostname of the GitHub instance that
+// owns the dependency: github.com or a lowercase GHE tenant hostname such as
+// octocorp.ghe.com. It is empty when omitted. Ref is the git ref the commit was
 // resolved from (required). Commit is the digest in algo-prefixed form (e.g.
 // "sha1-abc123...", "sha256-def456...") (required). OwnerID and RepoID are the
 // host-specific numeric IDs for the owner and repository, used to detect a
@@ -371,6 +372,12 @@ var allowedActionKeys = map[string]struct{}{
 // must carry, in report order.
 var requiredActionKeys = []string{"ref", "commit", "owner_id", "repo_id"}
 
+// canonicalHostnamePattern matches github.com or a single lowercase DNS tenant
+// label under ghe.com.
+const canonicalHostnamePattern = `^(github\.com|[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.ghe\.com)$`
+
+var canonicalHostnameRE = regexp.MustCompile(canonicalHostnamePattern)
+
 // nonEmptyStringKeys lists action fields that must be non-empty when present.
 var nonEmptyStringKeys = map[string]struct{}{
 	"hostname": {},
@@ -408,6 +415,14 @@ func rejectZeroValues(action *yaml.Node, dep string) *ParseError {
 					Column: val.Column,
 					Msg:    fmt.Sprintf("action field %q must not be empty for dependency %q", key.Value, dep),
 				}
+			}
+		}
+
+		if key.Value == "hostname" && val.Value != "" && !canonicalHostnameRE.MatchString(val.Value) {
+			return &ParseError{
+				Line:   val.Line,
+				Column: val.Column,
+				Msg:    fmt.Sprintf("action field %q must be \"github.com\" or a lowercase canonical GHE tenant hostname for dependency %q, got %q", key.Value, dep, val.Value),
 			}
 		}
 

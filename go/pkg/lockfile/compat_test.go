@@ -179,7 +179,7 @@ func TestParseWithPolicy_AcceptsVersionInRange(t *testing.T) {
 	input := `version: v0.0.3
 dependencies:
   actions/checkout@v4:
-    hostname: github.example.test
+    hostname: octocorp.ghe.com
     ref: v4
     commit: sha1-11bd71901bbe5b1630ceea73d27597364c9af683
     owner_id: 1
@@ -189,7 +189,7 @@ dependencies:
 	f, err := ParseWithPolicy([]byte(input), policy)
 	require.NoError(t, err)
 	assert.Equal(t, Version, f.Version)
-	assert.Equal(t, "github.example.test", f.Dependencies["actions/checkout@v4"].Hostname)
+	assert.Equal(t, "octocorp.ghe.com", f.Dependencies["actions/checkout@v4"].Hostname)
 }
 
 func TestParseWithPolicy_RejectsVersionBelowMin(t *testing.T) {
@@ -212,7 +212,7 @@ func TestParseWithPolicy_RejectsVersionAboveMax(t *testing.T) {
 	input := `version: v0.0.3
 dependencies:
   actions/checkout@v4:
-    hostname: github.example.test
+    hostname: octocorp.ghe.com
     ref: v4
     commit: sha1-11bd71901bbe5b1630ceea73d27597364c9af683
     owner_id: 1
